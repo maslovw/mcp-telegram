@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib.metadata
+import json
 import logging
 import os
 import sys
@@ -38,6 +39,8 @@ app = typer.Typer(
 
 console = Console()
 
+_json_opt = typer.Option("--json", "-j", help="Output in JSON format")
+
 
 def async_command(
     func: Callable[..., Coroutine[Any, Any, None]],
@@ -65,7 +68,23 @@ async def telegram_client() -> AsyncIterator[Telegram]:
     Requires API_ID and API_HASH environment variables to be set.
     """
     tg = Telegram()
-    tg.create_client()
+    try:
+        tg.create_client()
+    except Exception:
+        console.print(
+            Panel.fit(
+                "[bold red]Missing credentials[/bold red]\n\n"
+                "CLI commands require API_ID and API_HASH "
+                "environment variables.\n\n"
+                "  [bold]export API_ID=your_api_id[/bold]\n"
+                "  [bold]export API_HASH=your_api_hash[/bold]\n\n"
+                "[dim]Get these from "
+                "https://my.telegram.org/apps[/dim]",
+                title="Authentication Error",
+                border_style="red",
+            )
+        )
+        raise typer.Exit(code=1)
     try:
         await tg.client.connect()
         yield tg
@@ -281,12 +300,16 @@ async def send(
         int | None,
         typer.Option("--reply-to", "-r", help="Message ID to reply to"),
     ] = None,
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Send a message to a user, group, or channel."""
     async with telegram_client() as tg:
         _entity = parse_entity(entity)
         await tg.send_message(_entity, message, file_path=file, reply_to=reply_to)
-        console.print(f"[green]Message sent to {entity}[/green]")
+        if json_output:
+            print(json.dumps({"status": "sent", "entity": entity}))
+        else:
+            console.print(f"[green]Message sent to {entity}[/green]")
 
 
 @app.command()
@@ -306,12 +329,24 @@ async def edit(
         str,
         typer.Argument(help="New message text"),
     ],
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Edit a previously sent message."""
     async with telegram_client() as tg:
         _entity = parse_entity(entity)
         await tg.edit_message(_entity, message_id, message)
-        console.print(f"[green]Message {message_id} edited in {entity}[/green]")
+        if json_output:
+            print(
+                json.dumps(
+                    {
+                        "status": "edited",
+                        "entity": entity,
+                        "message_id": message_id,
+                    }
+                )
+            )
+        else:
+            console.print(f"[green]Message {message_id} edited in {entity}[/green]")
 
 
 @app.command()
@@ -327,13 +362,25 @@ async def delete(
         list[int],
         typer.Argument(help="Message ID(s) to delete"),
     ],
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Delete messages from a chat."""
     async with telegram_client() as tg:
         _entity = parse_entity(entity)
         await tg.delete_message(_entity, message_ids)
-        count = len(message_ids)
-        console.print(f"[green]Deleted {count} message(s) from {entity}[/green]")
+        if json_output:
+            print(
+                json.dumps(
+                    {
+                        "status": "deleted",
+                        "entity": entity,
+                        "message_ids": message_ids,
+                    }
+                )
+            )
+        else:
+            count = len(message_ids)
+            console.print(f"[green]Deleted {count} message(s) from {entity}[/green]")
 
 
 @app.command()
@@ -365,6 +412,7 @@ async def messages(
         bool,
         typer.Option("--mark-read", help="Mark messages as read"),
     ] = False,
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Get messages from a chat."""
     _start = datetime.fromisoformat(start_date) if start_date else None
@@ -375,6 +423,10 @@ async def messages(
         result = await tg.get_messages(
             _entity, limit, _start, _end, unread, mark_as_read
         )
+
+        if json_output:
+            print(result.model_dump_json(indent=2))
+            return
 
         if result.dialog:
             console.print(
@@ -429,10 +481,20 @@ async def search(
         bool,
         typer.Option("--global", "-g", help="Search globally"),
     ] = False,
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Search for users, groups, and channels."""
     async with telegram_client() as tg:
         results = await tg.search_dialogs(query, limit, global_search)
+
+        if json_output:
+            print(
+                json.dumps(
+                    [d.model_dump(mode="json") for d in results],
+                    indent=2,
+                )
+            )
+            return
 
         if not results:
             console.print("[yellow]No results found.[/yellow]")
@@ -473,12 +535,15 @@ async def get_draft(
             help="Chat ID, username, phone number, or 'me'",
         ),
     ],
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Get the draft message for a chat."""
     async with telegram_client() as tg:
         _entity = parse_entity(entity)
         draft = await tg.get_draft(_entity)
-        if draft:
+        if json_output:
+            print(json.dumps({"entity": entity, "draft": draft}))
+        elif draft:
             console.print(
                 Panel(
                     draft,
@@ -503,12 +568,16 @@ async def set_draft(
         str,
         typer.Argument(help="Draft message text"),
     ],
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Set a draft message for a chat."""
     async with telegram_client() as tg:
         _entity = parse_entity(entity)
         await tg.set_draft(_entity, message)
-        console.print(f"[green]Draft saved for {entity}[/green]")
+        if json_output:
+            print(json.dumps({"status": "saved", "entity": entity}))
+        else:
+            console.print(f"[green]Draft saved for {entity}[/green]")
 
 
 @app.command()
@@ -528,25 +597,29 @@ async def download(
         str | None,
         typer.Option("--path", "-p", help="Download directory"),
     ] = None,
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Download media from a message."""
     async with telegram_client() as tg:
         _entity = parse_entity(entity)
         result = await tg.download_media(_entity, message_id, path)
-        size = result.media.file_size
-        size_str = f"{size:,} bytes" if size else "N/A"
-        console.print(
-            Panel(
-                f"[bold]Path:[/bold] {result.path}\n"
-                f"[bold]Type:[/bold] "
-                f"{result.media.mime_type or 'unknown'}\n"
-                f"[bold]Name:[/bold] "
-                f"{result.media.file_name or 'N/A'}\n"
-                f"[bold]Size:[/bold] {size_str}",
-                title="Downloaded Media",
-                border_style="green",
+        if json_output:
+            print(result.model_dump_json(indent=2))
+        else:
+            size = result.media.file_size
+            size_str = f"{size:,} bytes" if size else "N/A"
+            console.print(
+                Panel(
+                    f"[bold]Path:[/bold] {result.path}\n"
+                    f"[bold]Type:[/bold] "
+                    f"{result.media.mime_type or 'unknown'}\n"
+                    f"[bold]Name:[/bold] "
+                    f"{result.media.file_name or 'N/A'}\n"
+                    f"[bold]Size:[/bold] {size_str}",
+                    title="Downloaded Media",
+                    border_style="green",
+                )
             )
-        )
 
 
 @app.command()
@@ -556,11 +629,15 @@ async def from_link(
         str,
         typer.Argument(help="Telegram message link"),
     ],
+    json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
     """Get a message from a Telegram link."""
     async with telegram_client() as tg:
         msg = await tg.message_from_link(link)
-        _print_message(msg)
+        if json_output:
+            print(msg.model_dump_json(indent=2))
+        else:
+            _print_message(msg)
 
 
 # ── Output formatting helpers ────────────────────────────────────────
