@@ -45,18 +45,20 @@ app = typer.Typer(
     name="mcp-telegram",
     help="MCP Server for Telegram",
     add_completion=False,
-    no_args_is_help=True,
 )
 
 
 @app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     version: Annotated[
         bool,
         typer.Option("--version", "-V", callback=_version_callback, is_eager=True),
     ] = False,
 ) -> None:
     """MCP Server for Telegram."""
+    if ctx.invoked_subcommand is None:
+        console.print(ctx.get_help())
 
 console = Console()
 
