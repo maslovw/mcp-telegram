@@ -16,7 +16,6 @@ from typing import Annotated, Any
 import typer
 
 from mcp.types import Tool
-from pydantic import ValidationError
 from rich.box import ROUNDED
 from rich.console import Console
 from rich.panel import Panel
@@ -318,9 +317,7 @@ def clear_session() -> None:
 async def send(
     entity: Annotated[
         str,
-        typer.Argument(
-            help="Chat ID, username, phone number, or 'me'",
-        ),
+        typer.Option("--id", "-i", help="Chat ID, username, phone number, or 'me'"),
     ],
     message: Annotated[
         str,
@@ -351,9 +348,7 @@ async def send(
 async def edit(
     entity: Annotated[
         str,
-        typer.Argument(
-            help="Chat ID, username, phone number, or 'me'",
-        ),
+        typer.Option("--id", "-i", help="Chat ID, username, phone number, or 'me'"),
     ],
     message_id: Annotated[
         int,
@@ -388,9 +383,7 @@ async def edit(
 async def delete(
     entity: Annotated[
         str,
-        typer.Argument(
-            help="Chat ID, username, phone number, or 'me'",
-        ),
+        typer.Option("--id", "-i", help="Chat ID, username, phone number, or 'me'"),
     ],
     message_ids: Annotated[
         list[int],
@@ -422,9 +415,7 @@ async def delete(
 async def messages(
     entity: Annotated[
         str,
-        typer.Argument(
-            help="Chat ID, username, phone number, or 'me'",
-        ),
+        typer.Option("--id", "-i", help="Chat ID, username, phone number, or 'me'"),
     ],
     limit: Annotated[
         int,
@@ -565,9 +556,7 @@ async def search(
 async def get_draft(
     entity: Annotated[
         str,
-        typer.Argument(
-            help="Chat ID, username, phone number, or 'me'",
-        ),
+        typer.Option("--id", "-i", help="Chat ID, username, phone number, or 'me'"),
     ],
     json_output: Annotated[bool, _json_opt] = False,
 ) -> None:
@@ -594,9 +583,7 @@ async def get_draft(
 async def set_draft(
     entity: Annotated[
         str,
-        typer.Argument(
-            help="Chat ID, username, phone number, or 'me'",
-        ),
+        typer.Option("--id", "-i", help="Chat ID, username, phone number, or 'me'"),
     ],
     message: Annotated[
         str,
@@ -619,9 +606,7 @@ async def set_draft(
 async def download(
     entity: Annotated[
         str,
-        typer.Argument(
-            help="Chat ID, username, phone number, or 'me'",
-        ),
+        typer.Option("--id", "-i", help="Chat ID, username, phone number, or 'me'"),
     ],
     message_id: Annotated[
         int,
