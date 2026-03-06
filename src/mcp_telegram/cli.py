@@ -16,6 +16,7 @@ from typing import Annotated, Any
 import typer
 
 from mcp.types import Tool
+from pydantic import ValidationError
 from rich.box import ROUNDED
 from rich.console import Console
 from rich.panel import Panel
@@ -70,7 +71,7 @@ async def telegram_client() -> AsyncIterator[Telegram]:
     tg = Telegram()
     try:
         tg.create_client()
-    except Exception:
+    except ValidationError:
         console.print(
             Panel.fit(
                 "[bold red]Missing credentials[/bold red]\n\n"
@@ -191,6 +192,11 @@ async def login() -> None:
 
         user = await tg.client.get_me()
 
+        # Save credentials for future CLI/MCP use
+        env_file = tg._state_dir / ".env"
+        env_file.write_text(f"API_ID={api_id}\nAPI_HASH={api_hash}\n")
+        env_file.chmod(0o600)
+
         console.print(
             Panel.fit(
                 f"[bold green]Authentication successful![/bold green]\n"
@@ -246,9 +252,14 @@ def clear_session() -> None:
 
     session_file = Telegram().session_file.with_suffix(".session")
 
+    tg = Telegram()
+    env_file = tg._state_dir / ".env"
+
     if session_file.exists():
         try:
             os.remove(session_file)
+            if env_file.exists():
+                os.remove(env_file)
             console.print(
                 Panel.fit(
                     "[bold green]Session file successfully deleted![/bold green]\n"

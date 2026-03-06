@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     """Settings for the Telegram client."""
 
+    model_config = {"env_file": xdg_state_home() / "mcp-telegram" / ".env"}
+
     api_id: str
     api_hash: SecretStr
 
