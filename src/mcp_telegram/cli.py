@@ -93,7 +93,8 @@ async def telegram_client() -> AsyncIterator[Telegram]:
     tg = Telegram()
     try:
         tg.create_client()
-    except ValidationError:
+    except Exception as e:
+        console.print(f"[bold red]Debug: {type(e).__name__}: {e}[/bold red]")
         console.print(
             Panel.fit(
                 "[bold red]Missing credentials[/bold red]\n\n"
